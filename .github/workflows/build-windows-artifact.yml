@@ -1,0 +1,38 @@
+name: build-windows-artifact
+on:
+  workflow_dispatch:  # déclenchement manuel via l'UI
+
+jobs:
+  build:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v0.8.2   # version officielle stable
+
+      - uses: ankane/setup-postgres@v1
+        with:
+          postgres-version: 17
+
+      - name: Build pgvector
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat" && ^
+          nmake /NOLOGO /F Makefile.win && ^
+          nmake /NOLOGO /F Makefile.win install
+
+      - name: Collect artifacts
+        shell: pwsh
+        run: |
+          $pgroot = $env:PGROOT
+          if (-not $pgroot) { $pgroot = "C:\Program Files\PostgreSQL\17" }
+          New-Item -ItemType Directory -Force -Path artifact\lib | Out-Null
+          New-Item -ItemType Directory -Force -Path artifact\extension | Out-Null
+          Copy-Item "$pgroot\lib\vector.dll" artifact\lib\
+          Copy-Item "$pgroot\share\extension\vector*" artifact\extension\
+          Get-ChildItem -Recurse artifact
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pgvector-windows-pg17
+          path: artifact/
